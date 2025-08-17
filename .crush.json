@@ -1,0 +1,36 @@
+{
+  "providers": {
+    "lmstudio": {
+      "name": "LM Studio",
+      "base_url": "http://localhost:1234/v1/",
+      "type": "openai",
+      "models": [
+        {
+          "name": "Qwen 3 Coder 30B",
+          "id": "qwen/qwen3-coder-30b",
+          "context_window": 256000,
+          "default_max_tokens": 20000
+        },
+        {
+          "name": "Llama 3.3 70B",
+          "id": "meta/llama-3.3-70b",
+          "context_window": 128000,
+          "default_max_tokens": 20000
+        }
+      ]
+    }
+  },
+  "default_provider": "lmstudio",
+  "mcp": {
+    "context7": {
+      "type": "sse",
+      "url": "https://mcp.context7.com/sse"
+    }
+  },
+  "permissions": {
+    "allowed_tools": [
+      "view", "ls", "grep", "edit",
+      "context7.resolve-library-id", "context7.get-library-docs"
+    ]
+  }
+}
