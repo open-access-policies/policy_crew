@@ -12,9 +12,9 @@
           "default_max_tokens": 20000
         },
         {
-          "name": "Llama 3.3 70B",
-          "id": "meta/llama-3.3-70b",
-          "context_window": 128000,
+          "name": "Deepseek Coder v2 Lite Instruct",
+          "id": "deepseek-coder-v2-lite-instruct",
+          "context_window": 163840,
           "default_max_tokens": 20000
         }
       ]
