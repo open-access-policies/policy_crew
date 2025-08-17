@@ -6,12 +6,10 @@ that conducts dynamic, conversational interviews to gather organizational
 requirements for ISMS generation.
 """
 
-import json
-import os
-import re
+import json, os, re, contextlib, io, pdb
 from datetime import datetime
 from typing import Dict, Any, List
-from crewai import Agent, Task, Crew
+from crewai import Agent, Task, Crew, LLM
 from langchain_ollama import OllamaLLM
 from pydantic import BaseModel, Field
 
@@ -19,7 +17,7 @@ from pydantic import BaseModel, Field
 class InterviewerAgent:
   """An intelligent agent that conducts dynamic interviews to gather ISMS requirements."""
   
-  def __init__(self, model_name: str = "qwen3:8b"):
+  def __init__(self, model_name: str = "ollama/dolphin3:latest"):
     """
     Initialize the Interviewer Agent.
     
@@ -31,6 +29,7 @@ class InterviewerAgent:
     self.interview_complete = False
     self.max_questions = 12
     self.question_count = 0
+    self.agent = self.create_agent()
     
   def create_agent(self) -> Agent:
     """
@@ -48,23 +47,38 @@ class InterviewerAgent:
       tools=[],
       reasoning=True,
       memory=True,
-      llm=OllamaLLM(
+      llm=LLM(
         model=self.model_name,
         temperature=0.7,
-        base_url="http://localhost:11434"
+        base_url="http://localhost:11434",
+        verbose=False
       )
     )
   
   def generate_initial_question(self) -> str:
-    """
-    Generate the initial question to start the interview.
-    
-    Returns:
-      The initial question string
-    """
     return "To begin, please tell me about your company and its primary business function."
-  
-  def generate_next_question(self, conversation_history: List[Dict[str, str]]) -> str:
+
+  def read_generate_question_prompt(self) ->  str:
+    return self.read_instructions("docs/interviewer/generate_question.md")
+
+  def read_synthesize_instructions(self) -> str:
+    return self.read_instructions("docs/interviewer/synthesize_conversation.md")
+
+  def read_instructions(self, path) -> str:
+    try:
+      with open(path, "r") as f:
+        return f.read()
+    except FileNotFoundError:
+      # Fallback to a basic prompt if file not found
+      print(f"Warning: {path} not found, using fallback prompt")
+      raise SystemExit(1)
+
+  def quiet_task(self, prompt) -> str:
+    buf_out, buf_err = io.StringIO(), io.StringIO()
+    with contextlib.redirect_stdout(buf_out), contextlib.redirect_stderr(buf_err):
+      return self.remove_think_block(self.agent.kickoff(prompt).raw)
+
+  def generate_next_question_batch(self, conversation_history: List[Dict[str, str]]) -> List:
     """
     Dynamically generate the next logical question based on conversation history.
     
@@ -77,54 +91,17 @@ class InterviewerAgent:
     if not conversation_history:
       return self.generate_initial_question()
     
-    # Check if this is the last question
-    if self.question_count >= self.max_questions - 1:
-      # This is the final question - inform user it's their last question
-      return "This is your final question. Please confirm if you're ready to complete the interview by responding with 'done' or 'finish'."
+    past_questions = "\n".join(f"- {q['question']}" for q in conversation_history)
+
+    prompt_template = self.read_generate_question_prompt()
     
-    # Read the prompt template from the markdown file
-    try:
-      with open("docs/interviewer/generate_question.md", "r") as f:
-        prompt_template = f.read()
-    except FileNotFoundError:
-      # Fallback to the original prompt if file not found
-      print("Warning: generate_question.md not found, using fallback prompt")
-      # Create a basic fallback template
-      prompt_template = """
-      You are an Information Security Requirements Interviewer. Based on the conversation history below, 
-      generate the next most logical question to continue gathering comprehensive information.
-      
-      Conversation History:
-      {history_text}
-      
-      You are currently on question #{len(conversation_history) + 1} of {self.max_questions}.
-      If this is the last question ({self.max_questions}), please phrase your question as a completion prompt.
-      
-      Please generate only the next question (no additional text or formatting).
-      """
-    
-    # Create a prompt that includes the conversation history
-    history_text = "\n".join([
-      f"Q: {q['question']}\nA: {q['answer']}" 
-      for q in conversation_history
-    ])
-    
-    # Replace variables in the template with actual values
-    # Handle special case where we need to escape curly braces that aren't meant for formatting
-    # First, replace the variables we want to format
-    # Replace the placeholders with actual values
-    prompt = prompt_template.replace("{len(conversation_history) + 1}", str(len(conversation_history) + 1))
-    prompt = prompt.replace("{self.max_questions}", str(self.max_questions))
-    
-    llm = OllamaLLM(
-      model=self.model_name,
-      temperature=0.7,
-      base_url="http://localhost:11434"
-    )
+    prompt = prompt_template.replace("{business_description}", conversation_history[0]["answer"])
+    prompt = prompt.replace("{max_questions}", str(self.max_questions))
+    prompt = prompt.replace("{question_history}", past_questions)
     
     try:
-      result = self.remove_think_block(llm.invoke(prompt))
-      return str(result).strip()
+      result = self.strip_markdown(self.quiet_task(prompt))
+      return [item["question_text"] for item in result["questions"]]
     except Exception as e:
       # Fallback to a simple question if the agent fails
       print(f"Error generating question: {e}")
@@ -152,76 +129,46 @@ class InterviewerAgent:
     Returns:
       A dictionary representing the structured interview data
     """
-    # This method analyzes the conversation history to extract meaningful ISMS requirements
-    # rather than just parroting back exact user responses
+    prompt = self.read_synthesize_instructions()
+    history = "\n\n".join(
+      f"Q: {item['question']}\nA: {item['answer']}"
+      for item in self.conversation_history if "question" in item and "answer" in item
+    )
+    prompt = prompt.replace("{question_history}", history)
     
-    # Initialize the structure with default values
-    interview_data = {
-      "organizationProfile": {
-        "companyName": "Not specified",
-        "industry": "Not specified",
-        "employeeCount": "Not specified",
-        "primaryBusinessFunction": "Not specified"
-      },
-      "dataAndCompliance": {
-        "handlesSensitiveData": False,
-        "sensitiveDataTypes": [],
-        "isHipaaRequired": False,
-        "isPciDssRelevant": False,
-        "otherComplianceFrameworks": []
-      },
-      "technologyStack": {
-        "cloudProvider": "Not specified",
-        "primaryPlatform": "Not specified",
-        "developsSoftware": False,
-        "hardwareModel": "Not specified"
-      },
-      "riskAssessment": {
-        "keyRisks": [],
-        "securityChallenges": []
-      },
-      "metadata": {
-        "interviewCompletionDate": datetime.now().strftime("%Y-%m-%d"),
-        "version": "1.0"
-      }
-    }
-    
-    # Analyze responses to extract meaningful ISMS requirements
-    # This is a simplified analysis - in a real implementation, this would use more sophisticated NLP
-    
-    # Extract key information from responses
-    for item in self.conversation_history:
-      answer = item["answer"].lower()
-      
-      # Look for specific indicators in responses
-      if "healthcare" in answer or "medical" in answer or "hipaa" in answer:
-        interview_data["dataAndCompliance"]["isHipaaRequired"] = True
-        if "HIPAA" not in interview_data["dataAndCompliance"]["otherComplianceFrameworks"]:
-          interview_data["dataAndCompliance"]["otherComplianceFrameworks"].append("HIPAA")
-          
-      if "payment" in answer or "pci" in answer:
-        interview_data["dataAndCompliance"]["isPciDssRelevant"] = True
-        if "PCI DSS" not in interview_data["dataAndCompliance"]["otherComplianceFrameworks"]:
-          interview_data["dataAndCompliance"]["otherComplianceFrameworks"].append("PCI DSS")
-          
-      if "cloud" in answer or "aws" in answer or "azure" in answer or "gcp" in answer:
-        if "cloud" in answer:
-          interview_data["technologyStack"]["cloudProvider"] = "Identified"
-          
-      if "employee" in answer or "staff" in answer:
-        # Extract employee count if mentioned
-        import re
-        employee_match = re.search(r'(\d+)', answer)
-        if employee_match:
-          interview_data["organizationProfile"]["employeeCount"] = employee_match.group(1)
-    
-    # Add some default values for required fields
-    if not interview_data["organizationProfile"]["primaryBusinessFunction"]:
-      # If no business function provided, set a default
-      interview_data["organizationProfile"]["primaryBusinessFunction"] = "Business function not specified"
-      
-    return interview_data
+    try:
+      result = self.quiet_task(prompt)
+      pdb.set_trace()
+      return self.strip_markdown(result)
+    except Exception as e:
+      # If there's an error with the LLM or processing, log the error and exit
+      print(f"Error generating structured JSON: {e}")
+      raise SystemExit(1)
   
+  def strip_markdown(self, result) -> str:
+      # Handle markdown-wrapped JSON if present
+      if result.strip().startswith("```json"):
+        # Extract JSON from markdown code block
+        json_start = result.find("{")
+        json_end = result.rfind("}") + 1
+        if json_start != -1 and json_end != -1:
+          json_str = result[json_start:json_end]
+        else:
+          # If we can't find proper JSON bounds, use the whole result
+          json_str = result.strip()
+      else:
+        json_str = result.strip()
+      
+      # Validate that it's valid JSON
+      try:
+        # Try to parse the result as JSON
+        return json.loads(json_str)
+      except json.JSONDecodeError as e:
+        # If it's not valid JSON, log the error and exit
+        print(f"Error: Generated content is not valid JSON. Details: {e}")
+        print(f"Generated content: {json_str}")
+        raise SystemExit(1)
+
   def save_interview_json(self, interview_data: Dict[str, Any], output_path: str = "interview_results.json") -> None:
     """
     Save the interview results to a JSON file.
@@ -236,47 +183,35 @@ class InterviewerAgent:
   def remove_think_block(self, text: str) -> str:
     return re.sub(r"<think>.*?</think>\n?", "", text, flags=re.DOTALL)
 
+  # For command-line interaction
+  def run_interactive_interview(self):
+    """Run an interactive interview session."""
+    print("Starting ISMS Requirements Interviewer...")
+    print("Type 'done' or 'finish' when you're ready to complete the interview.")
 
-
-# For command-line interaction
-def run_interactive_interview():
-  """Run an interactive interview session."""
-  print("Starting ISMS Requirements Interviewer...")
-  print(f"You will be asked a maximum of {self.max_questions} questions.")
-  print("Type 'done' or 'finish' when you're ready to complete the interview.")
-  
-  interviewer = InterviewerAgent()
-  
-  # Start with initial question
-  current_question = interviewer.generate_initial_question()
-  print(f"\nInterviewer: {current_question}")
-  
-  while not interviewer.interview_complete and interviewer.question_count < interviewer.max_questions:
-    user_answer = input("You: ")
-    
-    # Check for completion signals
-    if user_answer.lower() in ["done", "finish", "completed"]:
-      print("\nInterviewer: Thank you for your responses. Generating structured requirements...")
-      interview_data = interviewer.synthesize_interview()
-      interviewer.save_interview_json(interview_data)
-      print("Interview results saved to interview_results.json")
-      break
-    
-    # Process the response
-    interviewer.process_user_response(current_question, user_answer)
-    
-    # Generate next question
-    current_question = interviewer.generate_next_question(interviewer.conversation_history)
+    # Start with initial question
+    current_question = self.generate_initial_question()
     print(f"\nInterviewer: {current_question}")
-  
-  # If we've reached the max questions, end the interview
-  if interviewer.question_count >= interviewer.max_questions:
-    print("\nInterviewer: Thank you for your responses. Generating structured requirements...")
-    interview_data = interviewer.synthesize_interview()
-    interviewer.save_interview_json(interview_data)
-    print("Interview results saved to interview_results.json")
+    user_answer = input("You: ")
+    self.process_user_response(current_question, user_answer)
+    
+    while not self.interview_complete and self.question_count < self.max_questions:
+      # Generate next question
+      next_questions = self.generate_next_question_batch(self.conversation_history)
+      for question in next_questions:
+        print(f"\nInterviewer: {question}")
+        user_answer = input("You: ")
+        self.process_user_response(question, user_answer)
+    
+    # If we've reached the max questions, end the interview
+    if self.question_count >= self.max_questions:
+      print("\nInterviewer: Thank you for your responses. Generating structured requirements...")
+      interview_data = self.synthesize_interview()
+      self.save_interview_json(interview_data)
+      print("Interview results saved to interview_results.json")
 
 
 if __name__ == "__main__":
   # For demonstration, run the interactive interview
-  run_interactive_interview()
+  interviewer = InterviewerAgent()
+  interviewer.run_interactive_interview()
