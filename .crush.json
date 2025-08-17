@@ -12,9 +12,9 @@
           "default_max_tokens": 20000
         },
         {
-          "name": "Deepseek Coder v2 Lite Instruct",
-          "id": "deepseek-coder-v2-lite-instruct",
-          "context_window": 163840,
+          "name": "Deepseek R1 Qwen 3 8B",
+          "id": "deepseek/deepseek-r1-0528-qwen3-8b",
+          "context_window": 128000,
           "default_max_tokens": 20000
         }
       ]
