@@ -10,7 +10,6 @@ import json, os, re, contextlib, io, pdb
 from datetime import datetime
 from typing import Dict, Any, List
 from crewai import Agent, Task, Crew, LLM
-from langchain_ollama import OllamaLLM
 from pydantic import BaseModel, Field
 
 
