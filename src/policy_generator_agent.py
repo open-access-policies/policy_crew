@@ -25,13 +25,14 @@ class ArchitectAgentRunner:
     self.domain_instructions = self.read_instructions("docs/architect/domain_architect.md")
     self.policy_instructions = self.read_instructions("docs/architect/policy_architect.md")
   
-  def generate_policy_outline(self) -> None:
+  def generate_policy_outline(self, domains=None) -> None:
     """
     Generate the complete ISMS policy and procedure set using CrewAI agents.
     """
-    domains = self.generate_domain_outline()
-    policy_tasks = self.create_policy_tasks(domains)
-    policy_outlines = self.generate_policy_outlines(policy_tasks)
+    if domains is None:
+      domains = self.generate_domain_outline()
+
+    policy_outlines = self.generate_policy_outlines(domains.get("policy_domains", []))
 
   def generate_domain_outline(self):
     # Create tasks
@@ -55,34 +56,29 @@ class ArchitectAgentRunner:
     result = crew.kickoff()
     return self.parse_response(result.raw)
 
-  def generate_policy_outlines(self, tasks):
-    crew = Crew(
-      agents=[self.policy_agent],
-      tasks=tasks,
-      verbose=self.VERBOSE)
-    result = crew.kickoff()
-    pdb.set_trace()
-
-  def create_policy_tasks(self, domains):
-    tasks = []
-    for domain in domains.get("policy_domains", []):
-      tasks.append( Task(
-        description=self.policy_instructions.replace("{domain}", str(domain)),
+  def generate_policy_outlines(self, domains):
+    task = Task(
+        description=self.policy_instructions,
         expected_output="A structured JSON object containing a comprehensive list of the specific policies necessary to satisfy the requirements of a single, assigned security domain.",
         agent=self.policy_agent,
-        input=domain,
+        input=domains,
         guardrail=self.validate_json_response
-      ) )
-    return tasks
+      )
+
+    input_list = [{"domain": domain} for domain in domains]
+    crew = Crew(
+      agents=[self.policy_agent],
+      tasks=[task],
+      verbose=self.VERBOSE)
+    result = crew.kickoff_for_each(inputs=input_list)
+    pdb.set_trace()
 
   @staticmethod
   def validate_json_response(result):
     try:
       validated_result = ArchitectAgentRunner.parse_response(result.raw)
-      pdb.set_trace()
       return (True, validated_result)
     except Exception as err:
-      pdb.set_trace()
       return (False, "Result must be a valid JSON object with no other text.")
 
   @staticmethod
@@ -174,4 +170,6 @@ if __name__ == "__main__":
   os.environ['OTEL_SDK_DISABLED'] = 'true'
   # For demonstration, run the policy generation
   architect = ArchitectAgentRunner()
-  architect.generate_policy_outline()
+  with open("domain_output.json", "r", encoding="utf-8") as f:
+    domains = json.load(f)
+  architect.generate_policy_outline(domains=domains)
