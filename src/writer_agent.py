@@ -3,26 +3,32 @@ import json, os, pdb, time
 from typing import Dict, Any, List
 from crewai import Agent, Task, Crew, LLM, Process
 from crewai_tools import DirectoryReadTool, FileWriterTool, FileReadTool
+from tenacity import retry, stop_after_attempt, wait_fixed
 
 class WriterAgentRunner:
   VERBOSE=True
 
   def __init__(self):
     self.policy_agent = self.create_writer_agent()
-    self.policy_instructions = self.read_instructions("docs/writer/instructions.md")
-    self.file_readers = [
-      FileReadTool(file_path="docs/writer/style_guide.md"),
-      FileReadTool(file_path="docs/templates/policy_template.md"),
-      FileReadTool(file_path="docs/templates/procedures_template.md")
-    ]
-  
+    self.policy_instructions = self.create_instructions()
+
+  def create_instructions(self):
+    style_guide_content = self.read_instructions("docs/writer/style_guide.md")
+    policy_template_content = self.read_instructions("docs/templates/policy_template.md")
+    procedures_template_content = self.read_instructions("docs/templates/procedures_template.md")
+
+    policy_instructions = self.read_instructions("docs/writer/instructions.md")
+    policy_instructions = policy_instructions.replace("style_guide_content", style_guide_content)
+    policy_instructions = policy_instructions.replace("policy_template_content", policy_template_content)
+    policy_instructions = policy_instructions.replace("procedures_template_content", procedures_template_content)
+    return policy_instructions
+    
+  @retry(stop=stop_after_attempt(30), wait=wait_fixed(2))
   def generate_policy_outline(self, policies) -> None:
     task = Task(
         description=self.policy_instructions,
         expected_output="A markdown formatted policy or procedure document.",
-        agent=self.policy_agent,
-        tools=self.file_readers,
-        # guardrail=self.validate_json_response
+        agent=self.policy_agent
       )
 
     crew = Crew(
@@ -31,41 +37,43 @@ class WriterAgentRunner:
       process=Process.sequential,
       verbose=self.VERBOSE)
 
-    batch_size = 5
-    input_list = [{"input": policy} for policy in policies]
-    batches = [input_list[i:i + batch_size] for i in range(0, len(input_list), batch_size)]
     results = []
-    for batch in batches:
-      results.append(crew.kickoff_for_each(inputs=batch))
-      time.sleep(60)
+    for policy in policies:
+      if self.is_policy_complete(policy):
+        print('Skipping already complete policy: ' + policy["policy_name"])
+        continue
+      result = crew.kickoff(inputs={"input": policy})
+      self.write_policy_file(policy, result)
+      print('Finished writing ' + policy["policy_name"])
+      # time.sleep(60)
 
-    pdb.set_trace()
+  def filename_from_policy(self, policy):
+    # Filter out invalid characters for MacOS filenames
+    filename = policy["policy_name"] + ".md"
+    # Remove invalid characters for MacOS filenames
+    invalid_chars = ['/', ':', '\\', '*', '?', '"', '<', '>', '|', '\0']
+    for char in invalid_chars:
+      filename = filename.replace(char, '_')
+    return filename 
 
+  def write_policy_file(self, policy, result):
+    # Filter out invalid characters for MacOS filenames
+    filename = self.filename_from_policy(policy)
+    with open("output/policies/" + filename, "w") as f:
+      f.write(result.raw)
+    self.mark_policy_complete(filename)
 
-  @staticmethod
-  def validate_json_response(result):
-    try:
-      validated_result = ArchitectAgentRunner.parse_response(result.raw)
-      return (True, validated_result)
-    except Exception as err:
-      return (False, "Result must be a valid JSON object with no other text.")
+  def mark_policy_complete(self, filename):
+    with open("output/policies/completed.out", "a") as f:
+      f.write(filename + "\n")
 
-  @staticmethod
-  def parse_response(result):
-    # Handle markdown-wrapped JSON if present
-    if result.strip().startswith("```json"):
-      # Extract JSON from markdown code block
-      json_start = result.find("{")
-      json_end = result.rfind("}") + 1
-      if json_start != -1 and json_end != -1:
-        result = result[json_start:json_end]
+  def is_policy_complete(self, policy):
+    print('Checking for policy: ' + self.filename_from_policy(policy))
+    with open("output/policies/completed.out") as f:
+      if self.filename_from_policy(policy) in f.read():
+        return True
       else:
-        # If we can't find proper JSON bounds, use the whole result
-        result = result.strip()
-    else:
-      result = result.strip()
-
-    return json.loads(result)
+        return False
 
   def create_writer_agent(self) -> Agent:
     role = "Information Security Policy Writer"
@@ -88,12 +96,14 @@ class WriterAgentRunner:
       An initialized CrewAI Agent instance
     """
     return Agent(
-      role=role, goal=goal, backstory=backstory + " Reasoning: high",
-      verbose=self.VERBOSE, allow_delegation=False,
-      tools=[], reasoning=True, memory=True,
+      role=role, goal=goal, backstory=backstory + " Reasoning: medium",
+      verbose=self.VERBOSE, 
+      allow_delegation=False,
+      reasoning=True, max_reasoning_attempts=5,
+      memory=True,
       llm=LLM(
         model="ollama/gpt-oss:120b",
-        temperature=0.7,
+        temperature=0.2,
         base_url="http://localhost:11434",
         verbose=self.VERBOSE
       )
@@ -101,15 +111,6 @@ class WriterAgentRunner:
 
 
   def read_instructions(self, path: str) -> str:
-    """
-    Read instructions from a file.
-    
-    Args:
-      path: Path to the instructions file
-      
-    Returns:
-      The content of the instructions file
-    """
     try:
       with open(path, "r") as f:
         return f.read()

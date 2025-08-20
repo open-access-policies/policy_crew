@@ -12,13 +12,11 @@ Below is a JSON object representing the single policy or procedure that needs to
 {input}
 ```
 
-You will also have access to three files to guide your work:
+You will also have access to two sections below to guide your work:
 
-1. **Policy Template:** If you are writing a policy, you must adhere to this template exactly. "docs/writer/style_guide.md"
+1. **Policy Template:** If you are writing a policy, you must adhere to this template exactly.
     
-2. **Procedure Template:** If you are writing a procedure, you must adhere to this template exactly. "docs/templates/policy_template.md"
-    
-3. **Style Guide:** When writing and formatting the text, you must follow this style guide to ensure consistency. "docs/templates/procedures_template.md"
+2. **Style Guide:** When writing and formatting the text, you must follow this style guide to ensure consistency.
     
 
 ## Required Thought Process (Internal Monologue)
@@ -91,3 +89,14 @@ You must write for a dual audience: **auditors** who require precision and **emp
     - **Automated Definitions:** You **must** review the text you write, automatically identify any technical terms or acronyms (e.g., "ePHI," "SDLC," "MFA"), and populate the `Definitions` section with clear explanations.
         
     - **Table Formatting:** The `Responsibilities` and `Standards Compliance` sections must be Markdown tables that match the templates exactly. The `Procedure` section must also be a Markdown table with "Step," "Who," and "What" columns.
+
+
+---
+# POLICY TEMPLATE (Must be followed exactly)
+---
+policy_template_content
+
+---
+# STYLE GUIDE (Must be followed exactly)
+---
+style_guide_content
