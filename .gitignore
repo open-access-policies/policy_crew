@@ -1,5 +1,6 @@
 output/
 results/
+code_gen/
 scratch/
 
 # Byte-compiled / optimized / DLL files
