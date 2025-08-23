@@ -16,6 +16,18 @@
           "id": "deepseek/deepseek-r1-0528-qwen3-8b",
           "context_window": 128000,
           "default_max_tokens": 20000
+        },
+        {
+          "name": "Codellama 70b Python",
+          "id": "codellama-70b-python-hf",
+          "context_window": 16000,
+          "default_max_tokens": 8000
+        },
+        {
+          "name": "GPT OSS 120B",
+          "id": "openai/gpt-oss-120b",
+          "context_window": 128000,
+          "default_max_tokens": 20000
         }
       ]
     }

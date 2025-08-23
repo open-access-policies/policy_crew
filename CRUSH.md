@@ -113,20 +113,8 @@ To run the interactive interviewer agent:
 - Interface-based design for swappable components
 - Comprehensive docstrings and type hints
 
-## Quality Assurance
-
-Each development step must include:
-1. **Unit tests** covering happy path and edge cases
-2. **Integration tests** for multi-agent workflows
-3. **File validation** ensuring proper structure and format
-4. **Error handling** for common failure scenarios
-5. **Documentation** with clear examples and usage
-
-## Success Criteria
-
-A successful implementation will:
-- Generate complete, audit-ready ISMS documentation in markdown format
-- Maintain consistent quality across all generated documents
-- Support easy customization and extension
-- Provide clear traceability of all decisions and changes
-- Enable deployment to GitHub Pages without modification
+## Policy Generator Agent Usage
+To run the policy generation agent:
+1. Ensure Ollama is running with the required models available (mixtral:8x7b-instruct, llama3.1:8b-instruct, llama3.1:70b-instruct)
+2. Run `python src/policy_generator_agent.py` to start the policy generation process
+3. The agent will use the interview results in `output/interview_results.json` to generate policies and procedures
