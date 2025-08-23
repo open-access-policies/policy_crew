@@ -1,0 +1,5 @@
+{"query": "What is the company's policy on data encryption?", "label": 1, "notes": "Should find relevant context"}
+{"query": "Describe the process for incident response.", "label": 1, "notes": "Should find relevant context"}
+{"query": "How does the password policy align with NIST guidelines?", "label": 1, "notes": "Should find relevant context"}
+{"query": "What are the approved company holidays for next year?", "label": 0, "notes": "Should NOT find relevant context"}
+{"query": "Does this policy mention dragons or wizards?", "label": 0, "notes": "Nonsensical query that should fail"}

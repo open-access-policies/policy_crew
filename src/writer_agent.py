@@ -4,6 +4,7 @@ from typing import Dict, Any, List
 from crewai import Agent, Task, Crew, LLM, Process
 from crewai_tools import DirectoryReadTool, FileWriterTool, FileReadTool
 from tenacity import retry, stop_after_attempt, wait_fixed
+from policy_agent_utilities import PolicyAgentUtilities
 
 class WriterAgentRunner:
   VERBOSE=True
@@ -13,11 +14,11 @@ class WriterAgentRunner:
     self.policy_instructions = self.create_instructions()
 
   def create_instructions(self):
-    style_guide_content = self.read_instructions("docs/writer/style_guide.md")
-    policy_template_content = self.read_instructions("docs/templates/policy_template.md")
-    procedures_template_content = self.read_instructions("docs/templates/procedures_template.md")
+    style_guide_content = PolicyAgentUtilities.read_instructions("docs/writer/style_guide.md")
+    policy_template_content = PolicyAgentUtilities.read_instructions("docs/templates/policy_template.md")
+    procedures_template_content = PolicyAgentUtilities.read_instructions("docs/templates/procedures_template.md")
 
-    policy_instructions = self.read_instructions("docs/writer/instructions.md")
+    policy_instructions = PolicyAgentUtilities.read_instructions("docs/writer/instructions.md")
     policy_instructions = policy_instructions.replace("style_guide_content", style_guide_content)
     policy_instructions = policy_instructions.replace("policy_template_content", policy_template_content)
     policy_instructions = policy_instructions.replace("procedures_template_content", procedures_template_content)
@@ -39,41 +40,13 @@ class WriterAgentRunner:
 
     results = []
     for policy in policies:
-      if self.is_policy_complete(policy):
+      if PolicyAgentUtilities.is_policy_complete(policy):
         print('Skipping already complete policy: ' + policy["policy_name"])
         continue
       result = crew.kickoff(inputs={"input": policy})
-      self.write_policy_file(policy, result)
+      PolicyAgentUtilities.write_policy_file(policy, result)
       print('Finished writing ' + policy["policy_name"])
       # time.sleep(60)
-
-  def filename_from_policy(self, policy):
-    # Filter out invalid characters for MacOS filenames
-    filename = policy["policy_name"] + ".md"
-    # Remove invalid characters for MacOS filenames
-    invalid_chars = ['/', ':', '\\', '*', '?', '"', '<', '>', '|', '\0']
-    for char in invalid_chars:
-      filename = filename.replace(char, '_')
-    return filename 
-
-  def write_policy_file(self, policy, result):
-    # Filter out invalid characters for MacOS filenames
-    filename = self.filename_from_policy(policy)
-    with open("output/policies/" + filename, "w") as f:
-      f.write(result.raw)
-    self.mark_policy_complete(filename)
-
-  def mark_policy_complete(self, filename):
-    with open("output/policies/completed.out", "a") as f:
-      f.write(filename + "\n")
-
-  def is_policy_complete(self, policy):
-    print('Checking for policy: ' + self.filename_from_policy(policy))
-    with open("output/policies/completed.out") as f:
-      if self.filename_from_policy(policy) in f.read():
-        return True
-      else:
-        return False
 
   def create_writer_agent(self) -> Agent:
     role = "Information Security Policy Writer"
@@ -108,17 +81,6 @@ class WriterAgentRunner:
         verbose=self.VERBOSE
       )
     )
-
-
-  def read_instructions(self, path: str) -> str:
-    try:
-      with open(path, "r") as f:
-        return f.read()
-    except FileNotFoundError:
-      # Fallback to a basic prompt if file not found
-      print(f"Warning: {path} not found")
-      raise SystemExit(1)
-
 
 if __name__ == "__main__":
   #Turn off crew telemetry
