@@ -1,0 +1,76 @@
+# --- Paths ---
+paths:
+  kb_dir: ./output/policies              # Your markdown corpus root
+  index_dir: ./results/index             # Where FAISS is persisted (so you don't re-embed every run)
+  results_dir: ./results/run             # Metrics, reports, artifacts
+
+# --- Loader & Splitter ---
+loader:
+  globs: ["**/*.md", "**/*.mdx"]         # Which files to ingest
+  exclude: []                             # Patterns to skip (e.g., ["**/drafts/**"])
+  max_files: null                         # (Optional) cap for quick runs
+
+splitter:
+  chunk_size: 1000                        # Chunk length in chars; ~800–1200 is a good RAG default
+  chunk_overlap: 300                      # Overlap keeps context across boundaries; higher helps recall, costs size
+
+# --- Embeddings ---
+embedder:
+  backend: ollama                         # "ollama" (local server) or "hf_local" (local HF model)
+  model: nomic-embed-text                 # Fast, stable local embedder; good baseline
+  base_url: "http://127.0.0.1:11434"      # Ollama endpoint
+  use_gpu: false                          # On Apple Silicon, CPU is often more stable for embeddings
+  batch_size: 32                          # Larger batches = faster embedding, within memory limits
+  cosine_floor: 0.20                      # Pre-filter: drop candidates with cosine < 0.20 BEFORE rerank (cuts junk)
+
+# --- Vector Store ---
+vector_store:
+  type: faiss                             # FAISS is reliable for local vector search
+  persist: true                           # Save/load index from disk
+
+# --- Retriever ---
+retriever:
+  strategy: mmr                           # "mmr" promotes diversity; better inputs for reranker than pure similarity
+  k: 20                                   # Candidate pool to hand to the reranker (balanced for recall vs noise)
+  mmr_lambda: 0.60                        # 0→similarity-only, 1→max diversity; 0.5–0.7 usually works well
+
+# --- Reranker ---
+reranker:
+  model: BAAI/bge-reranker-large          # Strong discriminator; CPU is fine on your Mac Studio
+  device: cpu                             # Avoid MPS/Metal NaNs; CPU is deterministic here
+  max_length: 512                         # Hard cap to prevent truncation weirdness
+  batch_size: 16                          # Conservative batch for stability
+
+# --- Gating (post-rerank decision policy) ---
+gating:
+  # How "picky" the accept/reject is. Order matters:
+  tau: 0.50                               # Absolute floor on top1 score (lowered from 0.55 to help recall on borderline positives)
+  delta: 0.15                             # Require a clear margin over runner-up (top1 - top2); curbs ambiguous hits
+  ratio: 1.50                             # Also require top1/top2 ratio; helps when scores cluster
+  min_overlap: 0.25                       # Lexical sanity check: |Q∩D| / |Q| after light stopwording
+  keep_within: 0.02                       # Return ties within 0.02 of top1 to avoid arbitrary cuts
+  top_k_return: 3                         # Cap number of returned docs
+
+# --- Tuning (simple sweep if you run `tune`) ---
+tuning:
+  objective: f1                           # Or "precision_constrained" with a recall floor
+  target_recall: 0.70                     # Only used when objective=precision_constrained
+  budget_trials: 30                       # Keep the grid small and quick
+  random_seed: 42
+  sweep:
+    tau: [0.45, 0.50, 0.55]               # Sweep absolute floor; biggest single dial for precision/recall tradeoff
+    delta: [0.10, 0.12, 0.15]             # Margin; raise if many “meh” results slip through
+    ratio: [1.30, 1.35, 1.50]             # Relative separation; complements margin
+    min_overlap: [0.15, 0.20, 0.25]       # Lexical sanity; raise to cut semantically drifty FPs
+    keep_within: [0.02, 0.03]             # Tie window; smaller = pickier when scores are close
+
+# --- Preflight policies ---
+preflight:
+  force_cpu_embeddings: true              # Export OLLAMA_NO_GPU=1 for stability on macOS
+  force_cpu_reranker: true                # Always run cross-encoder on CPU
+  skip_ollama: false                      # Set true to force HF local embeddings fallback
+
+# --- Reporting ---
+report:
+  include_latency_tables: true            # Useful to see where time goes
+  include_histograms: false               # Turn on for score/margin distributions if desired
