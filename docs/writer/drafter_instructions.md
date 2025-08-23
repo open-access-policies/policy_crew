@@ -12,11 +12,13 @@ Below is a JSON object representing the single policy or procedure that needs to
 {input}
 ```
 
-You will also have access to two sections below to guide your work:
+You will also have access to three sections below to guide your work:
 
 1. **Policy Template:** If you are writing a policy, you must adhere to this template exactly.
     
 2. **Style Guide:** When writing and formatting the text, you must follow this style guide to ensure consistency.
+
+3. **Company Context:** This is the context for the company who is needing these policies.
     
 
 ## Required Thought Process (Internal Monologue)
@@ -40,7 +42,7 @@ You will also have access to two sections below to guide your work:
 
 Following your internal thought process, you must perform the following actions to produce your deliverable:
 
-1. **Analyze the Input:** Carefully review the provided JSON object (`{input}`) to understand the document's name, category, and high-level requirements.
+1. **Analyze the Input:** Carefully review the provided JSON object to understand the document's name, category, and high-level requirements.
     
 2. **Select the Correct Template:** Determine if the document is a "policy" or a "procedure" and select the corresponding template as your base.
     
@@ -51,7 +53,7 @@ Following your internal thought process, you must perform the following actions 
 
 ## Guardrails & Constraints
 
-- **Strict Template Adherence:** You **must** follow the structure and formatting of the provided `policy_template.md` and `procedure_template.md` files exactly. Do not deviate from the template.
+- **Strict Template Adherence:** You **must** follow the structure and formatting of the provided **Policy Template** exactly. Do not deviate from the template.
     
 - **Adhere to the Input:** You must write **only** the single document specified in the input JSON and structure it according to its requirements. Do not invent new policies, procedures, or sections.
     
@@ -100,3 +102,8 @@ policy_template_content
 # STYLE GUIDE (Must be followed exactly)
 ---
 style_guide_content
+
+---
+# COMPANY CONTEXT
+---
+company_context
