@@ -62,6 +62,7 @@ Choose **one** of the following structures for your JSON output:
 
 ```
 {
+  "file_name": "{file_name}",
   "decision": "approve",
   "final_document": "--- title: ... ---\n# The complete, corrected markdown text...",
   "summary_of_changes": "Corrected password length requirement to align with the Access Control Policy. Added a definition for 'MDM' and clarified CISO responsibilities."
@@ -72,6 +73,7 @@ Choose **one** of the following structures for your JSON output:
 
 ```
 {
+  "file_name": "{file_name}",
   "decision": "reject_for_revision",
   "feedback_for_drafter": [
     {
@@ -87,6 +89,7 @@ Choose **one** of the following structures for your JSON output:
 
 ```
 {
+  "file_name": "{file_name}",
   "decision": "recommend_merge",
   "target_policy_id": "AC-POL-001",
   "target_policy_name": "Access Control Policy",

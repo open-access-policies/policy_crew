@@ -117,7 +117,8 @@ class RetrievalTool(BaseTool):
                 query_embedding = ollama_emb.embed_query(query)
                 
                 # Get document embeddings for all candidates
-                doc_embeddings = [ollama_emb.embed_document(doc.page_content) for doc in selected_docs]
+                doc_contents = [doc.page_content for doc in selected_docs]
+                doc_embeddings = ollama_emb.embed_documents(doc_contents)
                 
                 # Calculate cosine similarities
                 similarities = cosine_similarity([query_embedding], doc_embeddings)[0]
@@ -148,8 +149,9 @@ class RetrievalTool(BaseTool):
                 query_embedding = ollama_emb.embed_query(query)
                 
                 # Get document embeddings for all candidates
-                doc_embeddings = [ollama_emb.embed_document(doc.page_content) for doc in initial_candidates]
-                
+                doc_contents = [doc.page_content for doc in initial_candidates]
+                doc_embeddings = ollama_emb.embed_documents(doc_contents)
+                                
                 # Calculate cosine similarities
                 similarities = cosine_similarity([query_embedding], doc_embeddings)[0]
                 
