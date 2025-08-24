@@ -152,10 +152,10 @@ class PolicyReviewerAgentRunner:
   def validate_json_response(result):
     try:
       validated_result = PolicyAgentUtilities.parse_response(result.raw)
-      if "decision" in validated_result:
+      if "decision" in validated_result and "justification" in validated_result:
         return (True, validated_result)
       else:
-        return (False, "Result must follow the JSON structure in the instructions with a decision element.")
+        return (False, "Result must follow the JSON structure in the instructions with decision and justification elements.")
     except Exception as err:
       return (False, "Result must be a valid JSON object with no other text.")
 
